@@ -1,0 +1,163 @@
+from timeit import default_timer as timer
+from threading import Thread, Semaphore
+import sys
+from tkinter import Tk
+from tkinter.filedialog import askopenfilename
+from colorama import init as colorama_init
+from colorama import Fore, Style
+import numpy as np
+import matplotlib.pyplot as plt
+
+
+from io_operations import IOHandler
+from crawler import WebsiteCrawler
+from user_agent_provider import UserAgentProvider
+from parser import AddressParser
+
+
+TIMEOUT = 2  # timeout for requests
+NUM_THREADS = 40
+CHUNK_SIZE = 100  # number of websites to crawl at once
+semaphore = Semaphore(NUM_THREADS)
+
+
+def crawl_website_with_semaphore(df_element, user_agent, responses):
+    """
+    Crawl website with semaphore
+    :param df_element: element from the dataframe
+    :param user_agent: str
+    :param links: list
+    """
+
+    semaphore.acquire()
+
+    try:
+        WebsiteCrawler(TIMEOUT).crawl_website(df_element, user_agent, responses)
+    finally:
+        semaphore.release()
+
+
+def crawl_websites(df, no_of_websites, user_agent_provider):
+    """
+    Crawl the websites
+    :param df: pandas dataframe
+    :param no_of_websites: int
+    :param user_agent_provider: UserAgentProvider
+    :return: list
+    """
+
+    threads = []
+    responses = []
+
+    # Iterate over the existing elements in the DataFrame
+    for i in range(min(len(df), no_of_websites)):
+        element = df[i]
+        t = Thread(
+            target=crawl_website_with_semaphore,
+            args=(
+                element,
+                user_agent_provider.get_random_user_agent(),
+                responses,
+            ),
+        )
+        t.start()
+        threads.append(t)
+
+    for t in threads:
+        t.join()
+
+    return responses
+
+
+def main():
+    start = timer()
+
+    colorama_init()
+
+    def print_error_and_exit(error_message):
+        print(f"{Fore.RED}ERROR: {error_message}{Style.RESET_ALL}")
+        sys.exit(1)
+
+    # Create the Tkinter root
+    Tk().withdraw()
+
+    # Ask the user to select a file
+    print(
+        f"INPUT: Please select the file containing the list of company websites\n"
+    )
+
+    path = askopenfilename(
+        title="Choose the file containing the list of company websites",
+    )
+
+    if path:
+        print(f"File loaded successfully: {path}")
+    else:
+        print_error_and_exit("No file selected")
+
+    try:
+        print("Loading user agents")
+        user_agents = open("input/user-agents.txt", "r").read().split("\n")
+        print("User agents loaded successfully")
+    except:
+        print_error_and_exit("Could not load user agents")
+
+    # Initialize handlers and providers
+    io_handler = IOHandler()
+    user_agent_provider = UserAgentProvider(user_agents)
+    address_parser = AddressParser(timeout=TIMEOUT)
+
+    # Read the domain data from the parquet file
+    df = io_handler.parse_parquet(path, "domain")
+    list_of_addresses = []
+
+    df = df.reset_index(drop=True)
+
+    groups = df.groupby(
+        np.arange(len(df)) // CHUNK_SIZE
+    )  # Split the dataframe into chunks
+
+    for _, group in groups:
+        print(
+            f"{Fore.LIGHTGREEN_EX}[{group.index[0] + 1}-{group.index[-1] + 1}] {Style.RESET_ALL}Crawling websites {group.index[0] + 1}-{group.index[-1] + 1} out of {len(df)}"
+        )
+
+        current_index = group.index[0]
+        # Reset the index of group
+        group = group.reset_index(drop=True)
+
+        # Crawl the websites and get the links
+        responses = crawl_websites(group, CHUNK_SIZE, user_agent_provider)
+
+        # Parse the addresses from the links
+        for element in responses:
+            print(
+                f"[{current_index + responses.index(element) + 1}] Extracting address from {element[0].get('domain')}"
+            )
+
+            address_parser.parse_address(
+                element,
+                user_agent_provider.get_random_user_agent(),
+                list_of_addresses,
+            )
+
+    # Write the addresses to a parquet file
+    io_handler.write_to_parquet(list_of_addresses)
+
+    io_handler.write_to_csv(list_of_addresses)
+    # io_handler.show_pie_chart(list_of_addresses)
+    # Calculate and print the elapsed time
+    end = timer()
+    seconds = end - start
+    m, s = divmod(seconds, 60)
+
+    print("\n-------------------------------------------------------")
+    print(f"Time elapsed: {Fore.GREEN}{m} minutes and {s} seconds{Style.RESET_ALL}")
+    print(
+        f"Extracted {Fore.GREEN}{len(list_of_addresses)}{Style.RESET_ALL} addresses from {Fore.YELLOW}{df.size}{Style.RESET_ALL} domains"
+    )
+    print("-------------------------------------------------------")
+
+
+if __name__ == "__main__":
+    main()
