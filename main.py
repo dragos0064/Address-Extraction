@@ -4,10 +4,7 @@ import sys
 from tkinter import Tk
 from tkinter.filedialog import askopenfilename
 from colorama import init as colorama_init
-from colorama import Fore, Style
 import numpy as np
-import matplotlib.pyplot as plt
-
 
 from io_operations import IOHandler
 from crawler import WebsiteCrawler
@@ -15,20 +12,12 @@ from user_agent_provider import UserAgentProvider
 from parser import AddressParser
 
 
-TIMEOUT = 2  # timeout for requests
+TIMEOUT = 2
 NUM_THREADS = 40
-CHUNK_SIZE = 100  # number of websites to crawl at once
+CHUNK_SIZE = 100
 semaphore = Semaphore(NUM_THREADS)
 
-
 def crawl_website_with_semaphore(df_element, user_agent, responses):
-    """
-    Crawl website with semaphore
-    :param df_element: element from the dataframe
-    :param user_agent: str
-    :param links: list
-    """
-
     semaphore.acquire()
 
     try:
@@ -38,13 +27,6 @@ def crawl_website_with_semaphore(df_element, user_agent, responses):
 
 
 def crawl_websites(df, no_of_websites, user_agent_provider):
-    """
-    Crawl the websites
-    :param df: pandas dataframe
-    :param no_of_websites: int
-    :param user_agent_provider: UserAgentProvider
-    :return: list
-    """
 
     threads = []
     responses = []
@@ -75,7 +57,7 @@ def main():
     colorama_init()
 
     def print_error_and_exit(error_message):
-        print(f"{Fore.RED}ERROR: {error_message}{Style.RESET_ALL}")
+        print(f"ERROR: {error_message}")
         sys.exit(1)
 
     # Create the Tkinter root
@@ -83,7 +65,7 @@ def main():
 
     # Ask the user to select a file
     print(
-        f"INPUT: Please select the file containing the list of company websites\n"
+        f"Input Parquet: Please select the file containing the list of company websites\n"
     )
 
     path = askopenfilename(
@@ -102,12 +84,10 @@ def main():
     except:
         print_error_and_exit("Could not load user agents")
 
-    # Initialize handlers and providers
     io_handler = IOHandler()
     user_agent_provider = UserAgentProvider(user_agents)
     address_parser = AddressParser(timeout=TIMEOUT)
 
-    # Read the domain data from the parquet file
     df = io_handler.parse_parquet(path, "domain")
     list_of_addresses = []
 
@@ -115,11 +95,11 @@ def main():
 
     groups = df.groupby(
         np.arange(len(df)) // CHUNK_SIZE
-    )  # Split the dataframe into chunks
+    )
 
     for _, group in groups:
         print(
-            f"{Fore.LIGHTGREEN_EX}[{group.index[0] + 1}-{group.index[-1] + 1}] {Style.RESET_ALL}Crawling websites {group.index[0] + 1}-{group.index[-1] + 1} out of {len(df)}"
+            f"[{group.index[0] + 1}-{group.index[-1] + 1}]Crawling websites {group.index[0] + 1}-{group.index[-1] + 1} out of {len(df)}"
         )
 
         current_index = group.index[0]
@@ -132,7 +112,7 @@ def main():
         # Parse the addresses from the links
         for element in responses:
             print(
-                f"[{current_index + responses.index(element) + 1}] Extracting address from {element[0].get('domain')}"
+                f"Extracting address from {element[0].get('domain')}"
             )
 
             address_parser.parse_address(
@@ -141,20 +121,21 @@ def main():
                 list_of_addresses,
             )
 
-    # Write the addresses to a parquet file
-    io_handler.write_to_parquet(list_of_addresses)
+    # Write the addresses to a parquet file and then to a csv file
 
+    io_handler.write_to_parquet(list_of_addresses)
     io_handler.write_to_csv(list_of_addresses)
-    # io_handler.show_pie_chart(list_of_addresses)
+    io_handler.show_pie_chart_for_countries(list_of_addresses)
+
     # Calculate and print the elapsed time
     end = timer()
     seconds = end - start
     m, s = divmod(seconds, 60)
 
     print("\n-------------------------------------------------------")
-    print(f"Time elapsed: {Fore.GREEN}{m} minutes and {s} seconds{Style.RESET_ALL}")
+    print(f"Time passed: {m} minutes and {s} seconds")
     print(
-        f"Extracted {Fore.GREEN}{len(list_of_addresses)}{Style.RESET_ALL} addresses from {Fore.YELLOW}{df.size}{Style.RESET_ALL} domains"
+        f"Extracted {len(list_of_addresses)} addresses from {df.size} domains"
     )
     print("-------------------------------------------------------")
 

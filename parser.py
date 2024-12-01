@@ -36,10 +36,6 @@ class AddressParser:
         )
 
     def geolocatorRandomUserAgent(self):
-        """
-        Generates a random user agent for the geolocator so that it doesn't get blocked / rate limited
-        :return: str
-        """
 
         arr = [
             *f"veridionAssignment{''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(10))}"
@@ -50,12 +46,6 @@ class AddressParser:
         return str
 
     def create_final_address(self, location_from_street, location_from_zip):
-        """
-        Creates a final address from the street and zip code
-        :param location_from_street: dict
-        :param location_from_zip: dict
-        :return: dict
-        """
 
         if not location_from_street and not location_from_zip:
             return None
@@ -114,14 +104,14 @@ class AddressParser:
                     return location
         except AttributeError:
             print(
-                f"{Fore.RED}AttributeError: Unable to find or process the location from {url}{Style.RESET_ALL}"
+                f"AttributeError: Unable to find or process the location from {url}"
             )
             logging.error(
                 f"AttributeError: Unable to find or process the location from {url}"
             )
         except Exception as e:
             print(
-                f"{Fore.RED}Unexpected error {e} occurred while getting location from {url}{Style.RESET_ALL}"
+                f"Unexpected error {e} occurred while getting location from {url}"
             )
             logging.error(
                 f"Unexpected error {e} occurred while getting location from {url}"
@@ -129,12 +119,6 @@ class AddressParser:
         return None
 
     def parse_address(self, responses, user_agent, output_arr):
-        """
-        Parses the address from the responses
-        :param responses: list
-        :param user_agent: str
-        :param output_arr: list
-        """
 
         list_of_street_addresses = []
         list_of_zip_codes = []
