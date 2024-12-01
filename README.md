@@ -85,7 +85,7 @@ Visualize the proportion of addresses across different countries or regions usin
 
 This project is licensed under the **MIT License**. You are free to use, modify, and distribute this software under the terms of the license. 
 
-See the [LICENSE](LICENSE) file for detailed information.
+
 
 
 
